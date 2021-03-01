@@ -66,6 +66,11 @@ def _add_create_image_config_args(
         labels,
         label_files,
         entrypoint,
+        healthcheck_test,
+        healthcheck_interval,
+        healthcheck_timeout,
+        healthcheck_start_period,
+        healthcheck_retries,
         cmd,
         null_cmd,
         null_entrypoint,
@@ -153,6 +158,17 @@ def _add_create_image_config_args(
         args.add("-entrypointPrefix", ctx.file.launcher.basename, format = "/%s")
         args.add_all(ctx.attr.launcher_args, before_each = "-entrypointPrefix")
 
+    if healthcheck_test:
+        args.add_all(healthcheck_test, before_each = "-healthcheckTest")
+        if healthcheck_interval:
+            args.add("-healthcheckInterval", healthcheck_interval)
+        if healthcheck_timeout:
+            args.add("-healthcheckTimeout", healthcheck_timeout)
+        if healthcheck_start_period:
+            args.add("-healthcheckStartPeriod", healthcheck_start_period)
+        if healthcheck_retries:
+            args.add("-healthcheckRetries", healthcheck_retries)
+
 def _format_legacy_label(t):
     return ("--labels=%s=%s" % (t[0], t[1]))
 
@@ -161,6 +177,11 @@ def _image_config(
         name,
         layer_names,
         entrypoint = None,
+        healthcheck_test = None,
+        healthcheck_interval = None,
+        healthcheck_timeout = None,
+        healthcheck_start_period = None,
+        healthcheck_retries = None,
         cmd = None,
         creation_time = None,
         env = None,
@@ -207,6 +228,11 @@ def _image_config(
         labels_fixed,
         label_files,
         entrypoint,
+        healthcheck_test,
+        healthcheck_interval,
+        healthcheck_timeout,
+        healthcheck_start_period,
+        healthcheck_retries,
         cmd,
         null_cmd,
         null_entrypoint,
@@ -271,6 +297,11 @@ def _impl(
         empty_dirs = None,
         directory = None,
         entrypoint = None,
+        healthcheck_test = None,
+        healthcheck_interval = None,
+        healthcheck_timeout = None,
+        healthcheck_start_period = None,
+        healthcheck_retries = None,
         cmd = None,
         creation_time = None,
         symlinks = None,
@@ -332,6 +363,11 @@ def _impl(
         empty_dirs: Dict[str, str], overrides ctx.attr.empty_dirs
         directory: str, overrides ctx.attr.directory
         entrypoint: str List, overrides ctx.attr.entrypoint
+        healthcheck_test: str, overrides ctx.attr.healthcheck_test
+        healthcheck_interval: str, overrides ctx.attr.healthcheck_interval
+        healthcheck_timeout: str, overrides ctx.attr.healthcheck_timeout
+        healthcheck_start_period: str, overrides ctx.attr.healthcheck_start_period
+        healthcheck_retries: int, overrides ctx.attr.healthcheck_retries
         cmd: str List, overrides ctx.attr.cmd
         creation_time: str, overrides ctx.attr.creation_time
         symlinks: str Dict, overrides ctx.attr.symlinks
@@ -363,6 +399,11 @@ def _impl(
     name = name or ctx.label.name
     base = base or ctx.attr.base
     entrypoint = entrypoint or ctx.attr.entrypoint
+    healthcheck_test = healthcheck_test or ctx.attr.healthcheck_test
+    healthcheck_interval = healthcheck_interval or ctx.attr.healthcheck_interval
+    healthcheck_timeout = healthcheck_timeout or ctx.attr.healthcheck_timeout
+    healthcheck_start_period = healthcheck_start_period or ctx.attr.healthcheck_start_period
+    healthcheck_retries = healthcheck_retries or ctx.attr.healthcheck_retries
     cmd = cmd or ctx.attr.cmd
     architecture = architecture or ctx.attr.architecture
     compression = compression or ctx.attr.compression
@@ -462,6 +503,11 @@ def _impl(
             layer_names = [layer_diff_ids[i]],
             entrypoint = entrypoint,
             cmd = cmd,
+            healthcheck_test = healthcheck_test,
+            healthcheck_interval = healthcheck_interval,
+            healthcheck_timeout = healthcheck_timeout,
+            healthcheck_start_period = healthcheck_start_period,
+            healthcheck_retries = healthcheck_retries,
             creation_time = creation_time,
             env = layer.env,
             base_config = config_file,
@@ -655,6 +701,11 @@ _attrs = dicts.add(_layer.attrs, {
                "docker. This is an experimental attribute, which is subject " +
                "to change or removal: do not depend on its exact behavior."),
     ),
+    "healthcheck_interval": attr.string(),
+    "healthcheck_retries": attr.int(),
+    "healthcheck_start_period": attr.string(),
+    "healthcheck_test": attr.string_list(),
+    "healthcheck_timeout": attr.string(),
     "label_file_strings": attr.string_list(),
     # Implicit/Undocumented dependencies.
     "label_files": attr.label_list(

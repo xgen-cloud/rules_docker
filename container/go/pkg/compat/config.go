@@ -42,6 +42,29 @@ const (
 	defaultTimestamp = "1970-01-01T00:00:00Z"
 )
 
+var (
+	validHealthcheckTypes = map[string]func([]string) error{
+		"NONE": func(args []string) error {
+			if len(args) != 1 {
+				return errors.New("NONE doesn't accept any extra args")
+			}
+			return nil
+		},
+		"CMD": func(args []string) error {
+			if len(args) < 2 {
+				return errors.New("CMD accepts at least 1 arg")
+			}
+			return nil
+		},
+		"CMD-SHELL": func(args []string) error {
+			if len(args) != 2 {
+				return errors.New("CMD-SHELL accepts only 1 arg")
+			}
+			return nil
+		},
+	}
+)
+
 // OverrideConfigOpts holds all configuration settings for the newly outputted config file.
 type OverrideConfigOpts struct {
 	// ConfigFile is the base config.json file.
@@ -88,6 +111,21 @@ type OverrideConfigOpts struct {
 	Entrypoint []string
 	// Layer is the list of layer sha256 hashes that compose the image for which the config is written.
 	Layer []string
+	// HealthcheckInterval is the time to wait between checks.
+	HealthcheckInterval string
+	// HealthcheckTimeout is the time to wait before considering the check to have hung.
+	HealthcheckTimeout string
+	// HealthcheckStartPeriod for the container to initialize before the retries starts to count down.
+	HealthcheckStartPeriod string
+	// HealthCheckRetries is the number of consecutive failures needed to consider a container as unhealthy. Zero means inherit.
+	HealthcheckRetries int
+	// HealthcheckTest is the command to override the health check command of the previous layer.
+	// Possible variations:
+	// {} : inherit healthcheck
+	// {"NONE"} : disable healthcheck
+	// {"CMD", args...} : exec arguments directly
+	// {"CMD-SHELL", command} : run command with system's default shell
+	HealthcheckTest []string
 	// Stamper will be used to stamp values in the image config.
 	Stamper *Stamper
 }
@@ -365,6 +403,61 @@ func updateConfigLabels(overrideInfo *OverrideConfigOpts, labels map[string]stri
 	return labelsMap
 }
 
+// healthCheckConfigIsChanged checks if any parameters for healthcheck were changed
+func healthCheckConfigIsChanged(overrideInfo *OverrideConfigOpts) bool {
+	return overrideInfo.HealthcheckInterval != "" ||
+		overrideInfo.HealthcheckTimeout != "" ||
+		overrideInfo.HealthcheckStartPeriod != "" ||
+		overrideInfo.HealthcheckRetries > 0 ||
+		len(overrideInfo.HealthcheckTest) > 0
+}
+
+// updateHealthCheck modifies the config's health check definition based on the provided override options.
+func updateHealthCheck(overrideInfo *OverrideConfigOpts) error {
+	if overrideInfo.ConfigFile.Config.Healthcheck == nil && healthCheckConfigIsChanged(overrideInfo) {
+		overrideInfo.ConfigFile.Config.Healthcheck = &v1.HealthConfig{}
+	}
+
+	if overrideInfo.HealthcheckInterval != "" {
+		interval, err := time.ParseDuration(overrideInfo.HealthcheckInterval)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse healthcheckInterval (%s)", overrideInfo.HealthcheckInterval)
+		}
+		overrideInfo.ConfigFile.Config.Healthcheck.Interval = interval
+	}
+
+	if overrideInfo.HealthcheckTimeout != "" {
+		timeout, err := time.ParseDuration(overrideInfo.HealthcheckTimeout)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse healthcheckTimeout (%s)", overrideInfo.HealthcheckTimeout)
+		}
+		overrideInfo.ConfigFile.Config.Healthcheck.Timeout = timeout
+	}
+
+	if overrideInfo.HealthcheckStartPeriod != "" {
+		startPeriod, err := time.ParseDuration(overrideInfo.HealthcheckStartPeriod)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse healthcheckStartPeriod (%s)", overrideInfo.HealthcheckStartPeriod)
+		}
+		overrideInfo.ConfigFile.Config.Healthcheck.StartPeriod = startPeriod
+	}
+
+	if overrideInfo.HealthcheckRetries > 0 {
+		overrideInfo.ConfigFile.Config.Healthcheck.Retries = overrideInfo.HealthcheckRetries
+	}
+
+	if len(overrideInfo.HealthcheckTest) > 0 {
+		checkType := overrideInfo.HealthcheckTest[0]
+		if check, ok := validHealthcheckTypes[checkType]; !ok {
+			return fmt.Errorf("HealthcheckTest first argument should be one of: 'NONE', 'CMD', 'CMD-SHELL' was '%s'", checkType)
+		} else if err := check(overrideInfo.HealthcheckTest); err != nil {
+			return errors.Wrap(err, "failed to validate check check command")
+		}
+		overrideInfo.ConfigFile.Config.Healthcheck.Test = overrideInfo.HealthcheckTest
+	}
+	return nil
+}
+
 // updateExposedPorts modifies the config's exposed ports based on the input ports.
 func updateExposedPorts(overrideInfo *OverrideConfigOpts) error {
 	for _, port := range overrideInfo.Ports {
@@ -503,6 +596,10 @@ func updateConfig(overrideInfo *OverrideConfigOpts) error {
 		if err := updateExposedPorts(overrideInfo); err != nil {
 			return errors.Wrap(err, "failed to update exposed ports from config")
 		}
+	}
+
+	if err := updateHealthCheck(overrideInfo); err != nil {
+		return errors.Wrap(err, "failed to update health check from config")
 	}
 
 	if len(overrideInfo.Volumes) > 0 {
