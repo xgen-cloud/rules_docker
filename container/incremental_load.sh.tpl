@@ -34,6 +34,12 @@ RUNFILES="${PYTHON_RUNFILES:-$(guess_runfiles)}"
 DOCKER="%{docker_tool_path}"
 DOCKER_FLAGS="%{docker_flags}"
 
+# hack to remove xattrs from incremental load only when we're reasonably sure we're using bsdtar
+TAR_OPTS=()
+if [[ "$(uname)" == "Darwin" ]] ; then
+  TAR_OPTS=("--no-xattrs")
+fi
+
 if [[ -z "${DOCKER}" ]]; then
     echo >&2 "error: docker not found; do you need to manually configure the docker toolchain?"
     exit 1
@@ -98,7 +104,7 @@ EOF
 EOF
 
   set -o pipefail
-  tar c config.json manifest.json | "${DOCKER}" ${DOCKER_FLAGS} load 2>/dev/null | cut -d':' -f 2- >> "${TEMP_IMAGES}"
+  tar c ${TAR_OPTS[0]+"${TAR_OPTS[@]}"} config.json manifest.json | "${DOCKER}" ${DOCKER_FLAGS} load 2>/dev/null | cut -d':' -f 2- >> "${TEMP_IMAGES}"
 }
 
 function find_diffbase() {
@@ -211,7 +217,7 @@ EOF
   # We minimize reads / writes by symlinking the layers above
   # and then streaming exactly the layers we've established are
   # needed into the Docker daemon.
-  tar cPh "${MISSING[@]}" | "${DOCKER}" ${DOCKER_FLAGS} load
+  tar cPh ${TAR_OPTS[0]+"${TAR_OPTS[@]}"} "${MISSING[@]}" | "${DOCKER}" ${DOCKER_FLAGS} load
 }
 
 function tag_layer() {
