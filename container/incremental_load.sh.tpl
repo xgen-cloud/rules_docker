@@ -104,7 +104,7 @@ EOF
 EOF
 
   set -o pipefail
-  tar c "${TAR_OPTS[@]}" config.json manifest.json | "${DOCKER}" ${DOCKER_FLAGS} load 2>/dev/null | cut -d':' -f 2- >> "${TEMP_IMAGES}"
+  tar c ${TAR_OPTS[0]+"${TAR_OPTS[@]}"} config.json manifest.json | "${DOCKER}" ${DOCKER_FLAGS} load 2>/dev/null | cut -d':' -f 2- >> "${TEMP_IMAGES}"
 }
 
 function find_diffbase() {
@@ -217,7 +217,7 @@ EOF
   # We minimize reads / writes by symlinking the layers above
   # and then streaming exactly the layers we've established are
   # needed into the Docker daemon.
-  tar cPh "${TAR_OPTS[@]}" "${MISSING[@]}" | "${DOCKER}" ${DOCKER_FLAGS} load
+  tar cPh ${TAR_OPTS[0]+"${TAR_OPTS[@]}"} "${MISSING[@]}" | "${DOCKER}" ${DOCKER_FLAGS} load
 }
 
 function tag_layer() {
