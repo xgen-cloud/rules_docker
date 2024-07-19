@@ -46,6 +46,9 @@ _DOC = "A rule that assembles data into a tarball which can be use as in layers 
 
 _DEFAULT_MTIME = -1
 
+def is_string(value):
+    return type(value) == type("")
+
 def _magic_path(ctx, f, output_layer):
     # Right now the logic this uses is a bit crazy/buggy, so to support
     # bug-for-bug compatibility in the foo_image rules, expose the logic.
@@ -102,6 +105,9 @@ def build_layer(
     """
     toolchain_info = ctx.toolchains["@io_bazel_rules_docker//toolchains/docker:toolchain_type"].info
     layer = output_layer
+    if is_string(layer):
+        layer = ctx.actions.declare_file(output_layer)
+
     if toolchain_info.build_tar_target:
         build_layer_exec = toolchain_info.build_tar_target.files_to_run.executable
     else:
@@ -159,6 +165,7 @@ def build_layer(
     manifest_file = ctx.actions.declare_file(name + "-layer.manifest")
     ctx.actions.write(manifest_file, manifest.to_json())
     args.add(manifest_file, format = "--manifest=%s")
+
 
     ctx.actions.run(
         executable = build_layer_exec,
@@ -241,7 +248,7 @@ def _impl(
     compression_options = ctx.attr.compression_options
     debs = debs or ctx.files.debs
     tars = tars or ctx.files.tars
-    output_layer = output_layer or ctx.outputs.layer
+    output_layer = output_layer  or ctx.label.name + "-layer.tar"
 
     # Generate the unzipped filesystem layer, and its sha256 (aka diff_id)
     unzipped_layer, diff_id = build_layer(
@@ -378,7 +385,7 @@ _layer_outputs = {
 
 layer = struct(
     attrs = _layer_attrs,
-    outputs = _layer_outputs,
+    outputs =  _layer_outputs,
     implementation = _impl,
     toolchains = ["@io_bazel_rules_docker//toolchains/docker:toolchain_type"],
 )
@@ -387,7 +394,7 @@ container_layer_ = rule(
     doc = _DOC,
     attrs = layer.attrs,
     executable = False,
-    outputs = layer.outputs,
+    # outputs = layer.outputs,
     implementation = layer.implementation,
     toolchains = ["@io_bazel_rules_docker//toolchains/docker:toolchain_type"],
 )

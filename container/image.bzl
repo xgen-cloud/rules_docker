@@ -316,6 +316,7 @@ def _impl(
         output_config_digest = None,
         output_digest = None,
         output_layer = None,
+        output_tag = None,
         workdir = None,
         user = None,
         null_cmd = None,
@@ -378,6 +379,7 @@ def _impl(
         output_config_digest: File, overrides ctx.outputs.config_digest
         output_digest: File, overrides ctx.outputs.digest
         output_layer: File, overrides ctx.outputs.layer
+        output_tag: File, overrides ctx.outputs.tag
         workdir: str, overrides ctx.attr.workdir
         user: str, overrides ctx.attr.user
         null_cmd: bool, overrides ctx.attr.null_cmd
@@ -399,13 +401,14 @@ def _impl(
     operating_system = operating_system or ctx.attr.operating_system
     os_version = os_version or ctx.attr.os_version
     creation_time = creation_time or ctx.attr.creation_time
-    build_executable = output_executable or ctx.outputs.build_script
-    output_tarball = output_tarball or ctx.outputs.out
-    output_digest = output_digest or ctx.outputs.digest
-    output_config = output_config or ctx.outputs.config
-    output_config_digest = output_config_digest or ctx.outputs.config_digest
-    output_layer = output_layer or ctx.outputs.layer
-    build_script = ctx.outputs.build_script
+    build_executable = output_executable or ctx.actions.declare_file(ctx.label.name + ".executable")
+    output_tarball = output_tarball or ctx.actions.declare_file(ctx.label.name + ".tar")
+    output_digest = output_digest or ctx.actions.declare_file(ctx.label.name + ".digest") # or ctx.outputs.digest
+    output_config = output_config or ctx.actions.declare_file(ctx.label.name + ".json") # or ctx.outputs.config
+    output_config_digest = output_config_digest or ctx.actions.declare_file(ctx.label.name + ".json.sha256") # or ctx.outputs.config_digest
+    output_layer = output_layer or ctx.actions.declare_file(ctx.label.name + "-layer.tar") # or ctx.outputs.layer
+    output_tag = output_tag or ctx.actions.declare_file(ctx.label.name + ".tag") # or ctx.outputs.tag
+    build_script = build_executable
     null_cmd = null_cmd or ctx.attr.null_cmd
     null_entrypoint = null_entrypoint or ctx.attr.null_entrypoint
 
@@ -507,6 +510,10 @@ def _impl(
 
     # Construct a temporary name based on the build target.
     tag_name = "{}:{}".format(_repository_name(ctx), name)
+    ctx.actions.write(
+        output = output_tag,
+        content = tag_name,
+    )
 
     # These are the constituent parts of the Container image, which each
     # rule in the chain must preserve.
@@ -589,6 +596,11 @@ def _impl(
             executable = build_executable,
             files = depset([output_layer]),
             runfiles = runfiles,
+        ),
+        OutputGroupInfo(
+            loader = [build_executable],
+            tagfile = [output_tag],
+            tarball = [output_tarball],
         ),
         coverage_common.instrumented_files_info(
             ctx,
@@ -795,9 +807,9 @@ _attrs = dicts.add(_layer.attrs, {
 
         This field supports stamp variables.""",
     ),
-    "_allowlist_function_transition": attr.label(
-        default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
-    ),
+    # "_allowlist_function_transition": attr.label(
+    #     default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+    # ),
     "_digester": attr.label(
         default = "//container/go/cmd/digester",
         cfg = "host",
@@ -817,14 +829,11 @@ _outputs["config_digest"] = "%{name}.json.sha256"
 
 _outputs["build_script"] = "%{name}.executable"
 
+_outputs["tag"] = "%{name}.tag"
+
 def _image_transition_impl(settings, attr):
     if not settings["@io_bazel_rules_docker//transitions:enable"]:
-        # Once bazel < 5.0 is not supported we can return an empty dict here
-        return {
-            "//command_line_option:platforms": settings["//command_line_option:platforms"],
-            "@io_bazel_rules_docker//platforms:image_transition_cpu": "//plaftorms:image_transition_cpu_unset",
-            "@io_bazel_rules_docker//platforms:image_transition_os": "//plaftorms:image_transition_os_unset",
-        }
+        return {}
 
     return {
         "//command_line_option:platforms": "@io_bazel_rules_docker//platforms:image_transition",
@@ -854,17 +863,17 @@ image = struct(
     attrs = _attrs,
     outputs = _outputs,
     implementation = _impl,
-    cfg = _image_transition,
+    # cfg = _image_transition,
 )
 
 container_image_ = rule(
     attrs = image.attrs,
     doc = "Called by the `container_image` macro with **kwargs, see below",
     executable = True,
-    outputs = image.outputs,
+    # outputs = image.outputs,
     toolchains = ["@io_bazel_rules_docker//toolchains/docker:toolchain_type"],
     implementation = image.implementation,
-    cfg = image.cfg,
+    # cfg = image.cfg,
 )
 
 # This validates the two forms of value accepted by

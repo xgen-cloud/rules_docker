@@ -15,7 +15,7 @@
 
 load("//container:bundle.bzl", _container_bundle = "container_bundle")
 load("//container:flatten.bzl", _container_flatten = "container_flatten")
-load("//container:image.bzl", _container_image = "container_image", _image = "image")
+load("//container:image.bzl", _container_image = "container_image", _image = "image", _container_image_ = "container_image_")
 load("//container:import.bzl", _container_import = "container_import")
 load("//container:layer.bzl", _container_layer = "container_layer")
 load("//container:load.bzl", _container_load = "container_load")
@@ -26,6 +26,7 @@ load("//container:push.bzl", _container_push = "container_push")
 container_bundle = _container_bundle
 container_flatten = _container_flatten
 container_image = _container_image
+container_image_ = _container_image_
 image = _image
 container_layer = _container_layer
 container_import = _container_import
