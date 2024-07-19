@@ -121,7 +121,13 @@ def _container_import_impl(ctx):
         _repository_name(ctx) + ":" + ctx.label.name: container_parts,
     }
 
-    _incr_load(ctx, images, ctx.outputs.executable)
+    outgoing_tag = "{}/{}:{}".format(ctx.attr.base_image_registry, ctx.attr.base_image_repository, ctx.attr.base_image_tag)
+
+    _incr_load(ctx, images = images, output = ctx.outputs.executable, imported_tags
+        = None if ctx.attr.import_tags == False else outgoing_tag)
+    output_tag = ctx.actions.declare_file(ctx.label.name + ".tag") # or
+    ctx.actions.write(output=output_tag, content=outgoing_tag)
+
     _assemble_image(
         ctx,
         images,
@@ -156,6 +162,7 @@ def _container_import_impl(ctx):
                 base_image_registry = ctx.attr.base_image_registry,
                 base_image_repository = ctx.attr.base_image_repository,
                 base_image_digest = ctx.attr.base_image_digest,
+                # base_image_tag = ctx.attr.base_image_tag,
             ),
         ]
     return [
@@ -167,6 +174,11 @@ def _container_import_impl(ctx):
             files = depset([ctx.outputs.out]),
             runfiles = runfiles,
         ),
+        OutputGroupInfo(
+            loader = [ctx.outputs.executable],
+            tagfile = [output_tag],
+            tarball = [ctx.outputs.out],
+        ),
     ] + pull_info
 
 container_import = rule(
@@ -175,6 +187,7 @@ container_import = rule(
         "base_image_digest": attr.string(doc = "The digest of the image"),
         "base_image_registry": attr.string(doc = "The registry from which we pulled the image"),
         "base_image_repository": attr.string(doc = "The repository from which we pulled the image"),
+        "base_image_tag": attr.string(),
         "config": attr.label(
             doc = """A json configuration file containing the image's metadata.
 
@@ -186,12 +199,13 @@ container_import = rule(
             doc = """The list of layer .tar.gz files in the order they appear in the config.json's layer section,
             or in the order that they appear in the `Layers` field of the docker save tarballs'
             `manifest.json` (these may or may not be gzipped).
-            
+
             Note that the layers should each have a different basename.
             """,
             allow_files = tar_filetype + tgz_filetype,
             mandatory = True,
         ),
+        "import_tags": attr.bool(default=False),
         "manifest": attr.label(
             allow_files = [".json"],
             mandatory = False,

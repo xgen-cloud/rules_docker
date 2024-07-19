@@ -394,7 +394,6 @@ container_layer_ = rule(
     doc = _DOC,
     attrs = layer.attrs,
     executable = False,
-    # outputs = layer.outputs,
     implementation = layer.implementation,
     toolchains = ["@io_bazel_rules_docker//toolchains/docker:toolchain_type"],
 )

@@ -271,6 +271,8 @@ container_import(
     base_image_registry = "{registry}",
     base_image_repository = "{repository}",
     base_image_digest = "{digest}",
+    base_image_tag = "{tag}",
+    import_tags = True,
     tags = {tags},
 )
 
@@ -279,6 +281,7 @@ exports_files(["image.digest", "digest"])
         registry = updated_attrs["registry"],
         repository = updated_attrs["repository"],
         digest = updated_attrs["digest"],
+        tag = updated_attrs["tag"],
         tags = import_rule_tags,
     ))
     return updated_attrs

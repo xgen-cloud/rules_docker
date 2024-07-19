@@ -207,6 +207,7 @@ def incremental_load(
         output,
         stamp = False,
         run = False,
+        imported_tags = None,
         run_flags = None):
     """Generate the incremental load statement.
 
@@ -217,6 +218,7 @@ def incremental_load(
        output: The output path for the load script
        stamp: Whether to stamp the produced image
        run: Whether to run the script or not
+       imported_tags: the original repo/tag an imported image was pulled fro
        run_flags: Additional run flags
     """
     stamp_files = []
@@ -273,7 +275,7 @@ def incremental_load(
         )
 
         # Now tag the imported config with the specified tag.
-        tag_reference = tag if not stamp else tag.replace("{", "${")
+        tag_reference = imported_tags if imported_tags else tag if not stamp else tag.replace("{", "${")
         tag_statements.append(
             "tag_layer \"%s\" '%s'" % (
                 # Turn stamp variable references into bash variables.
